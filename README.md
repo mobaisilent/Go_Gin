@@ -920,6 +920,20 @@ if result.Error != nil {
 结果如下：
 ![image-20240714212114324](./images/image-20240714212114324.png)
 
+示例2：
+
+```go
+result := db.Where("id = ?", 1).Unscoped().Delete(&HelloWorld{})
+if result.Error != nil {
+    fmt.Println("删除失败:", result.Error)
+} else {
+    fmt.Println("删除成功")
+}
+```
+
+结果如下：
+![image-20240714212618657](./images/image-20240714212618657.png)
+
 #### 改
 
 示例1；

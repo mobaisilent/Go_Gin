@@ -24,7 +24,7 @@ func main() {
 	defer db.Close() // defer关闭
 	db.AutoMigrate(&HelloWorld{})
 
-	result := db.Where("id = ?", 1).Delete(&HelloWorld{})
+	result := db.Where("id = ?", 1).Unscoped().Delete(&HelloWorld{})
 	if result.Error != nil {
 		fmt.Println("删除失败:", result.Error)
 	} else {
