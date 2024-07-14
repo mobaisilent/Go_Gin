@@ -2,45 +2,32 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"os"
-	"time"
-
-	"github.com/gin-gonic/gin"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
+type HelloWorld struct {
+	gorm.Model
+	Name string
+	Sex  string
+	Age  int
+}
+
 func main() {
-	// 获取当前日期
-	currentTime := time.Now()
+	db, err := gorm.Open("mysql", "root:mobaisilent@tcp(122.51.14.13:3306)/gin?charset=utf8mb4&parseTime=True&loc=Local")
+	if err != nil {
+		fmt.Println("Failed to connect to database")
+		panic(err)
+	} else {
+		fmt.Println("建立连接成功")
+	}
+	defer db.Close() // defer关闭
+	db.AutoMigrate(&HelloWorld{})
 
-	// 格式化日期并用于文件名：：不使用filename也可以自定义filenam'e
-	logFileName := fmt.Sprintf("gin_%s.log", currentTime.Format("2006-01-02"))
-
-	// 创建或打开日志文件，如果文件已存在，将在文件末尾添加内容
-	f, _ := os.OpenFile(logFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	gin.DefaultWriter = io.MultiWriter(f)
-
-	router := gin.Default()
-	router.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		// your custom format
-		return fmt.Sprintf("%s - [%s] \"%s %s %s %d %s \"%s\" %s\"\n",
-			param.ClientIP,
-			param.TimeStamp.Format(time.RFC1123),
-			param.Method,
-			param.Path,
-			param.Request.Proto,
-			param.StatusCode,
-			param.Latency,
-			param.Request.UserAgent(),
-			param.ErrorMessage,
-		)
-		// 这里注意稍微看看自定义日志的格式
-	}))
-	router.Use(gin.Recovery())
-
-	router.GET("/ping", func(c *gin.Context) {
-		c.String(200, "pong")
-	})
-
-	router.Run(":1234")
+	result := db.Where("id = ?", 1).Delete(&HelloWorld{})
+	if result.Error != nil {
+		fmt.Println("删除失败:", result.Error)
+	} else {
+		fmt.Println("删除成功")
+	}
 }

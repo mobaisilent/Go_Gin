@@ -852,7 +852,129 @@ func main() {
 
 ![image-20240714173005849](./images/image-20240714173005849.png)
 
+## 数据库操作GORM
 
+### 连接及其简单的创建表和数据项
 
+```go
+package main
 
+import (
+	"fmt"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+)
 
+type HelloWorld struct {
+	gorm.Model // gorm.Model 是一个包含ID、CreatedAt、UpdatedAt、DeletedAt的结构体，可以嵌入你的model
+	Name       string
+	Sex        string
+	Age        int
+}
+
+func main() {
+	db, err := gorm.Open("mysql", "用户名:密码@tcp(服务器IP地址:3306)/gin?charset=utf8mb4&parseTime=True&loc=Local")
+	if err != nil {
+		fmt.Println("Failed to connect to database")
+		panic(err)
+	} else {
+		fmt.Println("建立连接成功")
+	}
+	defer db.Close()              // defer关闭
+	db.AutoMigrate(&HelloWorld{}) // 自动建表格
+	db.Create(&HelloWorld{
+		Name: "mobai",
+		Sex:  "boy",
+		Age:  18,
+	})
+    // 建立数据项
+}
+```
+
+结果如下：
+![image-20240714205228708](./images/image-20240714205228708.png)
+
+### 基本操作
+
+#### 增
+
+```go
+db.Create(&HelloWorld{
+    Name: "mobaia2",
+    Sex:  "boy",
+    Age:  19,
+})
+```
+
+#### 删
+
+```go
+result := db.Where("id = ?", 1).Delete(&HelloWorld{})
+if result.Error != nil {
+    fmt.Println("删除失败:", result.Error)
+} else {
+    fmt.Println("删除成功")
+}
+```
+
+结果如下：
+![image-20240714212114324](./images/image-20240714212114324.png)
+
+#### 改
+
+示例1；
+
+```go
+var hw HelloWorld
+result := db.Where("id = ?", 1).First(&hw).Updates(HelloWorld{Name: "mobaisilent"})
+if result.Error != nil {
+    fmt.Println("更新失败:", result.Error)
+} else {
+    fmt.Println("更新成功")
+}
+```
+
+结果如下：
+![image-20240714210819506](./images/image-20240714210819506.png)
+
+示例2：
+
+```go
+result := db.Model(&HelloWorld{}).Where("id IN (?)", []int{1, 2}).Updates(map[string]interface{}{
+    "Name": "mobaitest",
+    "Sex":  "boy",
+    "Age":  18,
+})
+if result.Error != nil {
+    fmt.Println("更新失败:", result.Error)
+} else {
+    fmt.Println("更新成功")
+}
+```
+
+结果如下：
+![image-20240714211713680](./images/image-20240714211713680.png)
+
+#### 查
+
+示例1：
+
+```go
+var hello []HelloWorld
+db.Where("age < ?", 20).Find(&hello)
+fmt.Println(hello)
+```
+
+结果如下：
+![image-20240714210202894](./images/image-20240714210202894.png)
+
+示例2：
+
+```go
+var hello HelloWorld
+db.First(&hello, "sex = ?", "girl")
+fmt.Println(hello)
+```
+
+结果如下：
+![image-20240714210215377](./images/image-20240714210215377.png)
