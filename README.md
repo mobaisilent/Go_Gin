@@ -579,3 +579,280 @@ func main() {
 
 ## 路由和分组
 
+![image-20240714151902919](./images/image-20240714151902919.png)![image-20240714152040803](./images/image-20240714152040803.png)
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	r := gin.Default()
+	v1 := r.Group("v1")
+	v1.GET("test", func(c *gin.Context) {
+		fmt.Println("我在分组v1里面")
+		c.JSON(200, gin.H{
+			"message": "test",
+		})
+	})
+	r.Run(":1234")
+}
+```
+
+分组路由返回信息如下：
+
+![image-20240714153353083](./images/image-20240714153353083.png)
+
+![image-20240714153522329](./images/image-20240714153522329.png)
+
+> 注意这里是GET请求不是POST请求
+
+### 中间件
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/gin-gonic/gin"
+)
+
+func middle() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		fmt.Println("我在方法前")
+		c.Next()
+		fmt.Println("我在方法后")
+	}
+}
+// 创建中间件：注意参数
+
+func main() {
+	r := gin.Default()
+	v1 := r.Group("v1").Use(middle())
+	v1.GET("test", func(c *gin.Context) {
+		fmt.Println("我在分组v1内部")
+		c.JSON(200, gin.H{
+			"message": "testSuccess",
+		})
+	})
+	r.Run(":1234")
+}
+```
+
+结果如下：
+
+![image-20240714153848853](./images/image-20240714153848853.png)
+
+![image-20240714153857636](./images/image-20240714153857636.png)
+
+> 中间件：洋葱结构：核心是 比如说这一段
+>
+> ```go
+> fmt.Println("我在分组v1内部")
+>     c.JSON(200, gin.H{
+>         "message": "testSuccess",
+> })
+> ```
+
+### 多个中间件
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/gin-gonic/gin"
+)
+
+func firstMiddle() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		fmt.Println("我在第一个中间件前")
+		c.Next()
+		fmt.Println("我在第一个中间件后")
+	}
+}
+
+func secondMiddle() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		fmt.Println("我在第二个中间件前")
+		c.Next()
+		fmt.Println("我在第二个中间件后")
+	}
+}
+
+func main() {
+	r := gin.Default()
+	v1 := r.Group("v1")
+	v1.Use(firstMiddle(), secondMiddle())
+	v1.GET("test", func(c *gin.Context) {
+		fmt.Println("我在分组v1内部")
+		c.JSON(200, gin.H{
+			"message": "testSuccess",
+		})
+	})
+	r.Run(":1234")
+}
+```
+
+![image-20240714155306940](./images/image-20240714155306940.png)
+
+## 日志
+
+### Gin日志组件
+
+![image-20240714155935817](./images/image-20240714155935817.png)
+
+```go
+package main
+
+import (
+	"io"
+	"os"
+
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	// 禁用控制台颜色
+	//gin.DisableConsoleColor()
+
+	// 创建记录日志的文件
+	f, _ := os.Create("gin.log")
+	gin.DefaultWriter = io.MultiWriter(f)
+
+	// 如果需要将日志同时写入文件和控制台，请使用以下代码
+	// gin.DefaultWriter = io.MultiWriter(f, os.Stdout)
+
+	router := gin.Default()
+	router.GET("/ping", func(c *gin.Context) {
+		c.String(200, "pong")
+	})
+
+	router.Run(":1234")
+}
+```
+
+只从成功之后当前文件夹中就多了个log文件：
+
+![image-20240714162032579](./images/image-20240714162032579.png)
+
+![image-20240714162112476](./images/image-20240714162112476.png)
+
+#### 追加日志信息
+
+```go
+package main
+
+import (
+	"io"
+	"os"
+
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	// 创建或打开日志文件，如果文件已存在，将在文件末尾添加内容
+	f, _ := os.OpenFile("gin.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	gin.DefaultWriter = io.MultiWriter(f)
+
+	router := gin.Default()
+	router.GET("/ping", func(c *gin.Context) {
+		c.String(200, "pong")
+	})
+	router.Run(":1234")
+}
+```
+
+> 也就是f的os那里需要处理和修改，后面也就是直接wirte即可
+>
+> > `0644` 表示创建的文件，文件的所有者有读写权限，而同一组的其他用户和其他所有用户只有读权限
+>
+> os.O_WRONLY|os.O_CREATE|os.O_APPEND
+>
+> 只读|创建|追加
+
+#### 按日期保存
+
+> 对于源代码修改这里就行了
+
+```
+// 获取当前日期
+currentTime := time.Now()
+
+// 格式化日期并用于文件名
+logFileName := fmt.Sprintf("gin_%s.log", currentTime.Format("2006-01-02"))  // 格式化
+// 核心就是这里创建log文件了
+
+// 创建或打开日志文件，如果文件已存在，将在文件末尾添加内容
+f, _ := os.OpenFile(logFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+gin.DefaultWriter = io.MultiWriter(f)
+// 惯例打开然后写入即可
+```
+
+### 自定义日志格式
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+func main() {
+	// 获取当前日期
+	currentTime := time.Now()
+
+	// 格式化日期并用于文件名：：不使用filename也可以自定义filenam'e
+	logFileName := fmt.Sprintf("gin_%s.log", currentTime.Format("2006-01-02"))
+
+	// 创建或打开日志文件，如果文件已存在，将在文件末尾添加内容
+	f, _ := os.OpenFile(logFileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	gin.DefaultWriter = io.MultiWriter(f)
+
+	router := gin.Default()
+	router.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		// your custom format
+		return fmt.Sprintf("%s - [%s] \"%s %s %s %d %s \"%s\" %s\"\n",
+			param.ClientIP,
+			param.TimeStamp.Format(time.RFC1123),
+			param.Method,
+			param.Path,
+			param.Request.Proto,
+			param.StatusCode,
+			param.Latency,
+			param.Request.UserAgent(),
+			param.ErrorMessage,
+		)
+		// 这里注意稍微看看自定义日志的格式
+	}))
+	router.Use(gin.Recovery())
+
+	router.GET("/ping", func(c *gin.Context) {
+		c.String(200, "pong")
+	})
+
+	router.Run(":1234")
+}
+
+```
+
+结果如下：是没什么问题的：可以将控制台的日志也打印出来
+
+> 使用这行：gin.DefaultWriter = io.MultiWriter(f, os.Stdout)
+
+![image-20240714173005849](./images/image-20240714173005849.png)
+
+
+
+
+
