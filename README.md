@@ -854,6 +854,12 @@ func main() {
 
 ## 数据库操作GORM
 
+![image-20240714213005034](./images/image-20240714213005034.png)
+
+![image-20240714213058496](./images/image-20240714213058496.png)
+
+![image-20240714213010121](./images/image-20240714213010121.png)
+
 ### 连接及其简单的创建表和数据项
 
 ```go
@@ -992,3 +998,320 @@ fmt.Println(hello)
 
 结果如下：
 ![image-20240714210215377](./images/image-20240714210215377.png)
+
+## GORM结构体
+
+> 参考资料：
+>
+> https://gorm.io/zh_CN/docs/index.html
+>
+> https://jasperxu.github.io/gorm-zh/
+>
+> https://learnku.com/docs/gorm/v1/index/3781
+
+![image-20240715173341331](./images/image-20240715173341331.png)
+
+![image-20240715173001089](./images/image-20240715173001089.png)
+
+### 更具gorm属性建立列项
+
+测试示例代码；
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+	// 有了_ 编译器就不会因为没有使用这个包而报错
+)
+
+type User struct {
+	gorm.Model        // gorm表的几个基本属性
+	Name       string `gorm:"column:user_name;type:varchar(100);primary_key"`
+}
+
+func main() {
+	db, err := gorm.Open("mysql", "root:mobaisilent@tcp(122.51.14.13:3306)/gin?charset=utf8&parseTime=True&loc=Local")
+	if err != nil {
+		fmt.Println("Failed to connect to database:", err)
+		return
+	} else {
+		fmt.Println("连接成功，开始创建表")
+	}
+	db.AutoMigrate(&User{}) // 自动创建上面定义的表
+	defer db.Close()
+}
+
+// 根据字段自定义表段
+```
+
+设计的表的结构如下：
+![image-20240715175637845](./images/image-20240715175637845.png)
+
+> 注意：
+> `gorm:"column:user_name;type:varchar(100);primary_key"`这行的一些关键字的位置是可以i陶正的
+>
+> 比如：
+>
+> `gorm:"primary_key;column:user_name;type:varchar(100)"`
+>
+> 推吧primary_key放到最后面符合一般创建表的思维
+>
+> Name可以看作是go机构体中的属性，然后后面的字段就看着实Name在数据库中的字段  就将两者练习起来了
+
+### 表关系：多对多关系
+
+> 使用many2many创建多对多关系的表
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+)
+
+type Student struct {
+	gorm.Model
+	Teachers []Teacher `gorm:"many2many:student_teachers"`
+	IDcards  []IDcard  // 表示一个学生有多个老师√和IDcards？
+}
+
+type Teacher struct {
+	gorm.Model
+	Students []Student `gorm:"many2many:student_teachers"`
+    // 表示一个老师可以有多个学生
+}
+
+type IDcard struct {
+	gorm.Model
+	StudentID uint
+	Num       int
+}
+
+func main() {
+	db, err := gorm.Open("mysql", "root:mobaisilent@tcp(122.51.14.13:3306)/gin?charset=utf8&parseTime=True&loc=Local")
+	if err != nil {
+		fmt.Println("Failed to connect to database:", err)
+		return
+	} else {
+		fmt.Println("连接数据库成功")
+	}
+	defer db.Close()
+
+	db.AutoMigrate(&Student{}, &Teacher{}, &IDcard{})
+}
+```
+
+结果如下：(创建的多对关系的表如下：可见关系表)
+
+![image-20240715183046856](./images/image-20240715183046856.png)
+
+解释如下：
+
+- `Student` 表：每个 `Student` 记录代表一个学生。它有一个 `Teachers` 字段，表示一个学生可以有多个老师。这是通过 `gorm:"many2many:student_teachers"` 标签实现的，GORM 会自动创建一个 `student_teachers` 表来存储 `Students` 和 `Teachers` 的多对多关系。`IDcards` 字段表示一个学生可以有多个 ID 卡。
+- `Teacher` 表：每个 `Teacher` 记录代表一个老师。它有一个 `Students` 字段，表示一个老师可以教多个学生。这也是通过 `gorm:"many2many:student_teachers"` 标签实现的。
+- `IDcard` 表：每个 `IDcard` 记录代表一个 ID 卡。它有一个 `StudentID` 字段，表示每个 ID 卡都属于一个学生。
+
+> 理一下这三个结构体所创建的表的关系：（三个表的结构如下）
+>
+> students
+> - ID
+> - CreatedAt
+> - UpdatedAt
+> - DeletedAt
+>
+> teachers
+> - ID
+> - CreatedAt
+> - UpdatedAt
+> - DeletedAt
+>
+> student_teachers
+> - student_id
+> - teacher_id
+>
+> idcards
+> - ID
+> - CreatedAt
+> - UpdatedAt
+> - DeletedAt
+> - StudentID
+> - Num
+
+### 复杂和合实例化
+
+示例代码：（创建一个数据库表的对象）
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+)
+
+type Class struct {
+	gorm.Model
+	ClassName string
+	Students  []Student
+}
+
+type Student struct {
+	gorm.Model
+	ClassID  uint
+	Name     string
+	Teachers []Teacher `gorm:"many2many:student_teachers"`
+	IDcards  IDcard
+}
+
+type Teacher struct {
+	gorm.Model
+	Name     string
+	Students []Student `gorm:"many2many:student_teachers"`
+}
+
+type IDcard struct {
+	gorm.Model
+	StudentID uint
+	Num       int
+}
+
+func main() {
+	db, err := gorm.Open("mysql", "root:mobaisilent@tcp(122.51.14.13:3306)/gin?charset=utf8&parseTime=True&loc=Local")
+	if err != nil {
+		fmt.Println("Failed to connect to database:", err)
+		return
+	} else {
+		fmt.Println("连接数据库成功")
+	}
+	defer db.Close()
+
+	db.AutoMigrate(&Class{}, &Student{}, &Teacher{}, &IDcard{})
+
+	t := Teacher{
+		Name: "张老师",
+	}
+	db.Create(&t)
+
+	card := IDcard{
+		Num: 123456,
+	}
+    db.Create(&card)
+
+	s := Student{
+		Name:     "小明",
+		Teachers: []Teacher{t},
+		IDcards:  card,
+	}
+	db.Create(&s)
+
+	c := Class{
+		ClassName: "qimiao",
+		Students:  []Student{s},
+	}
+	db.Create(&c)
+}
+
+```
+
+结果如下：（其他表略）
+
+![image-20240715201529499](./images/image-20240715201529499.png)
+
+### 结合gin的应用
+
+> 实现数据库的后端应用
+
+示例代码：
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
+)
+
+type Class struct {
+	gorm.Model
+	ClassName string
+	Students  []Student
+}
+
+type Student struct {
+	gorm.Model
+	ClassID  uint
+	Name     string
+	Teachers []Teacher `gorm:"many2many:student_teachers"`
+	IDcards  IDcard
+}
+
+type Teacher struct {
+	gorm.Model
+	Name     string
+	Students []Student `gorm:"many2many:student_teachers"`
+}
+
+type IDcard struct {
+	gorm.Model
+	StudentID uint
+	Num       int
+}
+
+func main() {
+	db, err := gorm.Open("mysql", "root:mobaisilent@tcp(122.51.14.13:3306)/gin?charset=utf8&parseTime=True&loc=Local")
+	if err != nil {
+		fmt.Println("Failed to connect to database:", err)
+		return
+	} else {
+		fmt.Println("连接数据库成功")
+	}
+	defer db.Close()
+
+	r := gin.Default()
+	// 使用中间件
+
+	r.GET("/student/:ID", func(c *gin.Context) {
+		id := c.Param("ID") // 获取参数
+		var student Student
+		db.Preload("Teachers").Preload("IDcards").First(&student, "id = ?", id)
+		c.JSON(200, gin.H{
+			"student": student,
+		})
+	})
+
+	r.GET("/class/:ID", func(c *gin.Context) {
+		id := c.Param("ID")
+		var class Class
+		db.Preload("Students").Preload("Students.Teachers").Preload("Students.IDcards").First(&class, "id = ?", id)
+		c.JSON(200, gin.H{
+			"class": class,
+		})
+	})
+
+	r.Run(":8888")
+}
+```
+
+![image-20240715221606243](./images/image-20240715221606243.png)
+
+![image-20240715221637391](./images/image-20240715221637391.png)
+
+> 关于preload：
+>
+> `Preload` 是用来执行预加载操作的。预加载是一种性能优化技术，它可以在查询一个对象时，同时查询该对象关联的其他对象。
+
+## JWT包
+
+> jsoon web token
+
+![image-20240715222025573](./images/image-20240715222025573.png)
+
+
+
